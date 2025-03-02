@@ -1,0 +1,8 @@
+﻿  Zoverus.cpp
+D:\Dev\Console Apps\Zoverus\source\Zoverus\Zoverus.cpp(126,27): warning C4244: 'initializing': conversion from 'std::streamsize' to 'size_t', possible loss of data
+  Generating code
+  20 of 251 functions ( 8.0%) were compiled, the rest were copied from previous compilation.
+    0 functions were new in current compilation
+    40 functions had inline decision re-evaluated but remain unchanged
+  Finished generating code
+  Zoverus.vcxproj -> D:\Dev\Console Apps\Zoverus\output\Zoverus\Win32\Release\Zoverus.exe
