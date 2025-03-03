@@ -89,6 +89,16 @@ bool initialize_winsock() {
     return WSAStartup(MAKEWORD(2, 2), &wsaData) == 0;
 }
 
+bool send_all(SOCKET socket, const char* buffer, size_t length) {
+    size_t total_sent = 0;
+    while (total_sent < length) {
+        int sent = send(socket, buffer + total_sent, length - total_sent, 0);
+        if (sent == SOCKET_ERROR) return false;
+        total_sent += sent;
+    }
+    return true;
+}
+
 void start_client(const std::string& host, unsigned short port, const std::string& folder_name) {
     if (!initialize_winsock()) {
         std::cout << "[ERROR] Winsock initialization failed!\n";
@@ -149,7 +159,10 @@ void start_client(const std::string& host, unsigned short port, const std::strin
     int bytes_received, segment_index = 0;
 
     while ((bytes_received = recv(client_socket, buffer.data(), buffer.size(), 0)) > 0) {
+        if (bytes_received == 0) break;
         std::vector<unsigned char> hash = compute_sha256(buffer, bytes_received);
+        // Send back the hash to confirm receipt
+        send_all(client_socket, (char*)hash.data(), hash.size());
         output_file.write(buffer.data(), bytes_received);
         std::cout << "[Client] Segment " << segment_index++ << " received with hash: ";
         print_hash(hash);

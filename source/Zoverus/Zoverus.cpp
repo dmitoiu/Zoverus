@@ -90,6 +90,26 @@ bool initialize_winsock() {
     return WSAStartup(MAKEWORD(2, 2), &wsaData) == 0;
 }
 
+bool send_all(SOCKET socket, const char* buffer, size_t length) {
+    size_t total_sent = 0;
+    while (total_sent < length) {
+        int sent = send(socket, buffer + total_sent, length - total_sent, 0);
+        if (sent == SOCKET_ERROR) return false;
+        total_sent += sent;
+    }
+    return true;
+}
+
+bool receive_all(SOCKET socket, char* buffer, size_t length) {
+    size_t total_received = 0;
+    while (total_received < length) {
+        int received = recv(socket, buffer + total_received, length - total_received, 0);
+        if (received == SOCKET_ERROR) return false;
+        total_received += received;
+    }
+    return true;
+}
+
 void start_server(unsigned short port, const std::string& file_path) {
     if (!initialize_winsock()) {
         std::cout << "[ERROR] Winsock initialization failed!\n";
@@ -144,9 +164,25 @@ void start_server(unsigned short port, const std::string& file_path) {
     while (input_file.read(buffer.data(), buffer.size()) || input_file.gcount() > 0) {
         size_t bytes_read = input_file.gcount();
         std::vector<unsigned char> hash = compute_sha256(buffer, bytes_read);
-        send(client_socket, buffer.data(), bytes_read, 0);
+        // Send the segment data
+        if (!send_all(client_socket, buffer.data(), bytes_read)) break;
+
+        // Wait for the client to send back the hash of the received segment
+        std::vector<unsigned char> client_hash(SHA256_DIGEST_LENGTH);
+        if (!receive_all(client_socket, (char*)client_hash.data(), client_hash.size())) break;
+
         std::cout << "[Server] Segment " << segment_index++ << " sent with hash: ";
-        print_hash(hash);
+
+        // Check if the received hash matches the original hash
+        if (client_hash == hash) {
+            std::cout << "[Server] Segment " << segment_index++ << " sent and confirmed with hash: ";
+            print_hash(hash);
+        }
+        else {
+            std::cout << "[Server] Hash mismatch for segment " << segment_index << "! Re-sending segment...\n";
+            // Re-send the segment if hash doesn't match
+            send_all(client_socket, buffer.data(), bytes_read);
+        }
     }
 
     std::cout << "[Server] File transfer complete.\n";
