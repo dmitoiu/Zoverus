@@ -32,8 +32,6 @@
 #include <shlobj.h>
 #include <direct.h>
 
-constexpr size_t SEGMENT_SIZE = 1024;
-
 void show_usage(const char* program_name) {
     std::cerr << "Usage:\n"
         << "  " << program_name << " <host> <port> <save_folder>\n\n"
@@ -99,6 +97,16 @@ bool send_all(SOCKET socket, const char* buffer, size_t length) {
     return true;
 }
 
+bool receive_all(SOCKET socket, char* buffer, size_t length) {
+    size_t total_received = 0;
+    while (total_received < length) {
+        int received = recv(socket, buffer + total_received, length - total_received, 0);
+        if (received == SOCKET_ERROR) return false;
+        total_received += received;
+    }
+    return true;
+}
+
 void start_client(const std::string& host, unsigned short port, const std::string& folder_name) {
     if (!initialize_winsock()) {
         std::cout << "[ERROR] Winsock initialization failed!\n";
@@ -131,6 +139,16 @@ void start_client(const std::string& host, unsigned short port, const std::strin
     recv(client_socket, filename, sizeof(filename), 0);
     std::cout << "[Client] Receiving file: " << filename << "\n";
 
+    // Receive segment size
+    size_t SEGMENT_SIZE = 0;
+    recv(client_socket, reinterpret_cast<char*>(&SEGMENT_SIZE), sizeof(SEGMENT_SIZE), 0);
+    std::cout << "[Client] Segment size: " << (SEGMENT_SIZE / 1024) << " KB\n";
+
+    // Receive segment size
+    size_t total_file_size = 0;
+    recv(client_socket, reinterpret_cast<char*>(&total_file_size), sizeof(total_file_size), 0);
+    std::cout << "[Client] File size: " << (total_file_size / 1024 / 1024) << " MB\n";
+
     // Get user's home directory
     char user_home[MAX_PATH];
     if (SHGetFolderPathA(NULL, CSIDL_PROFILE, NULL, 0, user_home) != S_OK) {
@@ -157,15 +175,47 @@ void start_client(const std::string& host, unsigned short port, const std::strin
     // Receive file data
     std::vector<char> buffer(SEGMENT_SIZE);
     int bytes_received, segment_index = 0;
+    size_t total_bytes_received = 0;
 
-    while ((bytes_received = recv(client_socket, buffer.data(), buffer.size(), 0)) > 0) {
-        if (bytes_received == 0) break;
+    while (true) {
+        int received_segment_index = 0;
+
+        // Receive segment index
+        if (!receive_all(client_socket, reinterpret_cast<char*>(&received_segment_index), sizeof(received_segment_index))) {
+            std::cout << "[ERROR] Failed to receive segment index.\n";
+            break;
+        }
+
+        // Receive segment data
+        bytes_received = recv(client_socket, buffer.data(), buffer.size(), 0);
+        if (bytes_received <= 0) break;
+
+        if (bytes_received > 0 && std::string(buffer.data(), bytes_received).find("-END-") != std::string::npos) {
+            std::cout << "\n[Client] Received END signal. Transfer complete.\n";
+            break;
+        }
+
+        // Compute hash of received data
         std::vector<unsigned char> hash = compute_sha256(buffer, bytes_received);
-        // Send back the hash to confirm receipt
-        send_all(client_socket, (char*)hash.data(), hash.size());
+
+        // Save data to file
         output_file.write(buffer.data(), bytes_received);
-        std::cout << "[Client] Segment " << segment_index++ << " received with hash: ";
+        total_bytes_received += bytes_received;
+        std::cout << "[Client] Segment " << received_segment_index << " received with hash: ";
         print_hash(hash);
+
+        // Wait for hash confirmation from the server
+        if (received_segment_index == segment_index) {
+            send_all(client_socket, "OK", 6);  // Send acknowledgment
+            segment_index++; // Move to the next expected segment
+            double progress = (double)total_bytes_received / total_file_size * 100;
+            std::cout << "\r[Client] Progress: " << progress << "%   " << std::endl;
+            std::cout.flush();
+        }
+        else {
+            send_all(client_socket, "RETRY", 6);  // Request retransmission
+            std::cout << "[Client] Hash mismatch! Requesting segment " << received_segment_index << " again.\n";
+        }
     }
 
     std::cout << "[Client] File saved to: " << output_path << "\n";

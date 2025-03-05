@@ -158,32 +158,74 @@ void start_server(unsigned short port, const std::string& file_path) {
     std::cout << "[Server] Sending file: " << filename << "\n";
 
     std::ifstream input_file(file_path, std::ios_base::binary);
+    input_file.seekg(0, std::ios_base::end);
+    size_t total_file_size = input_file.tellg();
+    input_file.seekg(0, std::ios_base::beg);
+
+    // Determine segment size dynamically (uTorrent logic)
+    size_t SEGMENT_SIZE = 32 * 1024; // Default 32 KB
+    if (total_file_size > 128 * 1024 * 1024) SEGMENT_SIZE = 64 * 1024;
+    if (total_file_size > 256 * 1024 * 1024) SEGMENT_SIZE = 128 * 1024;
+    if (total_file_size > 512 * 1024 * 1024) SEGMENT_SIZE = 256 * 1024;
+    if (total_file_size > 1 * 1024 * 1024 * 1024) SEGMENT_SIZE = 512 * 1024;
+    if (total_file_size > 2 * 1024 * 1024 * 1024) SEGMENT_SIZE = 1 * 1024 * 1024;
+    if (total_file_size > 4 * 1024 * 1024 * 1024) SEGMENT_SIZE = 2 * 1024 * 1024;
+    if (total_file_size > 8 * 1024 * 1024 * 1024) SEGMENT_SIZE = 4 * 1024 * 1024;
+
+    std::cout << "[Server] Segment size: " << (SEGMENT_SIZE / 1024) << " KB\n";
+
+    // Send segment size to client
+    send(client_socket, reinterpret_cast<char*>(&SEGMENT_SIZE), sizeof(SEGMENT_SIZE), 0);
+
+    // Send segment size to client
+    send(client_socket, reinterpret_cast<char*>(&total_file_size), sizeof(total_file_size), 0);
+
     std::vector<char> buffer(SEGMENT_SIZE);
     int segment_index = 0;
+    size_t total_bytes_sent = 0;
 
     while (input_file.read(buffer.data(), buffer.size()) || input_file.gcount() > 0) {
         size_t bytes_read = input_file.gcount();
         std::vector<unsigned char> hash = compute_sha256(buffer, bytes_read);
-        // Send the segment data
-        if (!send_all(client_socket, buffer.data(), bytes_read)) break;
 
-        // Wait for the client to send back the hash of the received segment
-        std::vector<unsigned char> client_hash(SHA256_DIGEST_LENGTH);
-        if (!receive_all(client_socket, (char*)client_hash.data(), client_hash.size())) break;
+        while (true) { // Loop until the segment is acknowledged
+            // Send the segment index first
+            if (!send_all(client_socket, reinterpret_cast<char*>(&segment_index), sizeof(segment_index))) {
+                std::cout << "[ERROR] Failed to send segment index.\n";
+                return;
+            }
 
-        std::cout << "[Server] Segment " << segment_index++ << " sent with hash: ";
+            // Send the segment data
+            if (!send_all(client_socket, buffer.data(), bytes_read)) {
+                std::cout << "[ERROR] Failed to send segment data.\n";
+                return;
+            }
 
-        // Check if the received hash matches the original hash
-        if (client_hash == hash) {
-            std::cout << "[Server] Segment " << segment_index++ << " sent and confirmed with hash: ";
-            print_hash(hash);
+            // Wait for the client acknowledgment
+            char ack[6] = { 0 }; // "OK" or "RETRY"
+            if (!receive_all(client_socket, ack, sizeof(ack))) {
+                std::cout << "[ERROR] Failed to receive acknowledgment.\n";
+                return;
+            }
+
+            if (std::string(ack) == "OK") {
+                total_bytes_sent += bytes_read;
+                double progress = (double)total_bytes_sent / total_file_size * 100;
+                std::cout << "[Server] Segment " << segment_index << " confirmed with hash: " << std::endl;
+                std::cout << "\r[Server] Progress: " << progress << "% (" << total_bytes_sent << " / " << total_file_size << " bytes)   " << std::endl;
+                std::cout.flush();
+                print_hash(hash);
+                break; // Move to the next segment
+            }
+            else {
+                std::cout << "[Server] Segment " << segment_index << " failed hash check. Retrying...\n";
+            }
         }
-        else {
-            std::cout << "[Server] Hash mismatch for segment " << segment_index << "! Re-sending segment...\n";
-            // Re-send the segment if hash doesn't match
-            send_all(client_socket, buffer.data(), bytes_read);
-        }
+        segment_index++; // Move to the next segment
     }
+
+    std::string end_signal = "-END-";
+    send(client_socket, end_signal.c_str(), end_signal.size(), 0);
 
     std::cout << "[Server] File transfer complete.\n";
     closesocket(client_socket);

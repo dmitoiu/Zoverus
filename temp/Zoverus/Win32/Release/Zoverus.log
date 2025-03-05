@@ -1,8 +1,12 @@
 ﻿  Zoverus.cpp
-D:\Dev\Console Apps\Zoverus\source\Zoverus\Zoverus.cpp(165,27): warning C4244: 'initializing': conversion from 'std::streamsize' to 'size_t', possible loss of data
+D:\Dev\Console Apps\Zoverus\source\Zoverus\Zoverus.cpp(162,28): warning C4244: 'initializing': conversion from 'std::streamoff' to 'size_t', possible loss of data
+D:\Dev\Console Apps\Zoverus\source\Zoverus\Zoverus.cpp(171,43): warning C4307: '*': signed integral constant overflow
+D:\Dev\Console Apps\Zoverus\source\Zoverus\Zoverus.cpp(172,43): warning C4307: '*': signed integral constant overflow
+D:\Dev\Console Apps\Zoverus\source\Zoverus\Zoverus.cpp(173,43): warning C4307: '*': signed integral constant overflow
+D:\Dev\Console Apps\Zoverus\source\Zoverus\Zoverus.cpp(188,27): warning C4244: 'initializing': conversion from 'std::streamsize' to 'size_t', possible loss of data
   Generating code
-  0 of 264 functions ( 0.0%) were compiled, the rest were copied from previous compilation.
+  1 of 257 functions ( 0.4%) were compiled, the rest were copied from previous compilation.
     0 functions were new in current compilation
-    0 functions had inline decision re-evaluated but remain unchanged
+    1 functions had inline decision re-evaluated but remain unchanged
   Finished generating code
   Zoverus.vcxproj -> D:\Dev\Console Apps\Zoverus\output\Zoverus\Win32\Release\Zoverus.exe
