@@ -190,11 +190,6 @@ void start_client(const std::string& host, unsigned short port, const std::strin
         bytes_received = recv(client_socket, buffer.data(), buffer.size(), 0);
         if (bytes_received <= 0) break;
 
-        if (bytes_received > 0 && std::string(buffer.data(), bytes_received).find("-END-") != std::string::npos) {
-            std::cout << "\n[Client] Received END signal. Transfer complete.\n";
-            break;
-        }
-
         // Compute hash of received data
         std::vector<unsigned char> hash = compute_sha256(buffer, bytes_received);
 

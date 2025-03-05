@@ -33,8 +33,6 @@
 #include <shlobj.h>
 #include <direct.h>
 
-constexpr size_t SEGMENT_SIZE = 1024;
-
 void show_usage(const char* program_name) {
     std::cerr << "Usage:\n"
         << "  " << program_name << " <port> <file_path>\n"
@@ -223,9 +221,6 @@ void start_server(unsigned short port, const std::string& file_path) {
         }
         segment_index++; // Move to the next segment
     }
-
-    std::string end_signal = "-END-";
-    send(client_socket, end_signal.c_str(), end_signal.size(), 0);
 
     std::cout << "[Server] File transfer complete.\n";
     closesocket(client_socket);
