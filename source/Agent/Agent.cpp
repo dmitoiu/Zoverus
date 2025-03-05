@@ -32,6 +32,8 @@
 #include <shlobj.h>
 #include <direct.h>
 
+constexpr size_t SEGMENT_SIZE = 1024;
+
 void show_usage(const char* program_name) {
     std::cerr << "Usage:\n"
         << "  " << program_name << " <host> <port> <save_folder>\n\n"
@@ -140,11 +142,6 @@ void start_client(const std::string& host, unsigned short port, const std::strin
     std::cout << "[Client] Receiving file: " << filename << "\n";
 
     // Receive segment size
-    size_t SEGMENT_SIZE = 0;
-    recv(client_socket, reinterpret_cast<char*>(&SEGMENT_SIZE), sizeof(SEGMENT_SIZE), 0);
-    std::cout << "[Client] Segment size: " << (SEGMENT_SIZE / 1024) << " KB\n";
-
-    // Receive segment size
     size_t total_file_size = 0;
     recv(client_socket, reinterpret_cast<char*>(&total_file_size), sizeof(total_file_size), 0);
     std::cout << "[Client] File size: " << (total_file_size / 1024 / 1024) << " MB\n";
@@ -203,9 +200,6 @@ void start_client(const std::string& host, unsigned short port, const std::strin
         if (received_segment_index == segment_index) {
             send_all(client_socket, "OK", 6);  // Send acknowledgment
             segment_index++; // Move to the next expected segment
-            double progress = (double)total_bytes_received / total_file_size * 100;
-            std::cout << "\r[Client] Progress: " << progress << "%   " << std::endl;
-            std::cout.flush();
         }
         else {
             send_all(client_socket, "RETRY", 6);  // Request retransmission
