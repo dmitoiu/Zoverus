@@ -142,6 +142,11 @@ void start_client(const std::string& host, unsigned short port, const std::strin
     std::cout << "[Client] Receiving file: " << filename << "\n";
 
     // Receive segment size
+    size_t SEGMENT_SIZE = 0;
+    recv(client_socket, reinterpret_cast<char*>(&SEGMENT_SIZE), sizeof(SEGMENT_SIZE), 0);
+    std::cout << "[Client] Segment size: " << (SEGMENT_SIZE / 1024) << " KB\n";
+
+    // Receive segment size
     size_t total_file_size = 0;
     recv(client_socket, reinterpret_cast<char*>(&total_file_size), sizeof(total_file_size), 0);
     std::cout << "[Client] File size: " << (total_file_size / 1024 / 1024) << " MB\n";

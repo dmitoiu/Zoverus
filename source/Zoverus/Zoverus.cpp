@@ -16,8 +16,6 @@
 *
 */
 
-constexpr size_t SEGMENT_SIZE = 1024;
-
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -160,6 +158,21 @@ void start_server(unsigned short port, const std::string& file_path) {
     input_file.seekg(0, std::ios_base::end);
     size_t total_file_size = input_file.tellg();
     input_file.seekg(0, std::ios_base::beg);
+
+    // Determine segment size dynamically (uTorrent logic)
+    size_t SEGMENT_SIZE = 32 * 1024; // Default 32 KB
+    if (total_file_size > 128 * 1024 * 1024) SEGMENT_SIZE = 64 * 1024;
+    if (total_file_size > 256 * 1024 * 1024) SEGMENT_SIZE = 128 * 1024;
+    if (total_file_size > 512 * 1024 * 1024) SEGMENT_SIZE = 256 * 1024;
+    if (total_file_size > 1 * 1024 * 1024 * 1024) SEGMENT_SIZE = 512 * 1024;
+    if (total_file_size > 2 * 1024 * 1024 * 1024) SEGMENT_SIZE = 1 * 1024 * 1024;
+    if (total_file_size > 4 * 1024 * 1024 * 1024) SEGMENT_SIZE = 2 * 1024 * 1024;
+    if (total_file_size > 8 * 1024 * 1024 * 1024) SEGMENT_SIZE = 4 * 1024 * 1024;
+
+    std::cout << "[Server] Segment size: " << (SEGMENT_SIZE / 1024) << " KB\n";
+
+    // Send segment size to client
+    send(client_socket, reinterpret_cast<char*>(&SEGMENT_SIZE), sizeof(SEGMENT_SIZE), 0);
 
     // Send segment size to client
     send(client_socket, reinterpret_cast<char*>(&total_file_size), sizeof(total_file_size), 0);
